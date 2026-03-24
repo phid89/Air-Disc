@@ -2,34 +2,53 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Air Disc</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #111; color: #0f0; font-family: "Courier New", monospace; display: flex; flex-direction: column; align-items: center; height: 100vh; }
-h1 { margin: 10px 0; font-size: 28px; text-shadow: 0 0 10px #0f0; }
-#controls { display: flex; gap: 20px; margin: 8px 0; flex-wrap: wrap; justify-content: center; }
-#controls label { font-size: 13px; }
-#controls input[type=range] { width: 120px; accent-color: #0f0; }
+body { background: #111; color: #0f0; font-family: "Courier New", monospace; display: flex; flex-direction: column; align-items: center; min-height: 100vh; overflow: hidden; touch-action: none; }
+h1 { margin: 6px 0; font-size: clamp(18px, 5vw, 28px); text-shadow: 0 0 10px #0f0; }
+#controls { display: flex; gap: 12px; margin: 4px 8px; flex-wrap: wrap; justify-content: center; }
+#controls label { font-size: clamp(10px, 2.5vw, 13px); }
+#controls input[type=range] { width: clamp(70px, 20vw, 120px); accent-color: #0f0; }
 button { background: #0f0; color: #111; border: none; padding: 6px 20px; font-family: inherit; font-weight: bold; cursor: pointer; font-size: 14px; }
 button:hover { background: #0a0; }
-canvas { border: 2px solid #0f0; margin-top: 8px; box-shadow: 0 0 20px #0f044; }
-#score { font-size: 22px; margin: 8px 0; text-shadow: 0 0 8px #0f0; }
+canvas { border: 2px solid #0f0; box-shadow: 0 0 20px #0f044; display: block; }
+#score { font-size: clamp(16px, 4vw, 22px); margin: 4px 0; text-shadow: 0 0 8px #0f0; }
 </style>
 </head>
 <body>
 <h1>AIR DISC</h1>
 <div id="score">0 : 0</div>
 <div id="controls">
-  <label>Bar-Breite: <span id="bwVal">80</span><br><input type="range" id="barWidth" min="30" max="200" value="80"></label>
-  <label>Ball-Speed: <span id="bsVal">4</span><br><input type="range" id="ballSpeed" min="2" max="12" value="4"></label>
-  <label>KI-Schwierigkeit: <span id="diffVal">3</span><br><input type="range" id="difficulty" min="1" max="7" value="3"></label>
+  <label>Bar: <span id="bwVal">80</span><br><input type="range" id="barWidth" min="30" max="200" value="80"></label>
+  <label>Speed: <span id="bsVal">4</span><br><input type="range" id="ballSpeed" min="2" max="12" value="4"></label>
+  <label>KI: <span id="diffVal">3</span><br><input type="range" id="difficulty" min="1" max="7" value="3"></label>
   <button id="startBtn">START</button>
 </div>
-<canvas id="c" width="600" height="400"></canvas>
+<canvas id="c"></canvas>
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-const W = canvas.width, H = canvas.height;
+let W, H;
+
+function resizeCanvas() {
+  const maxW = window.innerWidth - 16;
+  const maxH = window.innerHeight - (document.getElementById('controls').getBoundingClientRect().bottom + 8);
+  const ratio = 3 / 2;
+  if (maxW / maxH > ratio) {
+    H = Math.floor(maxH);
+    W = Math.floor(H * ratio);
+  } else {
+    W = Math.floor(maxW);
+    H = Math.floor(W / ratio);
+  }
+  W = Math.max(W, 200);
+  H = Math.max(H, 130);
+  canvas.width = W;
+  canvas.height = H;
+  if (!running) drawStatic();
+}
 
 let barW = 80, speed = 4, diff = 3;
 let playerScore = 0, aiScore = 0;
@@ -44,51 +63,69 @@ sliderBW.oninput = () => { barW = +sliderBW.value; document.getElementById('bwVa
 sliderBS.oninput = () => { speed = +sliderBS.value; document.getElementById('bsVal').textContent = speed; };
 sliderDiff.oninput = () => { diff = +sliderDiff.value; document.getElementById('diffVal').textContent = diff; };
 
+function scaledBarW() { return barW * (H / 400); }
+function paddleW() { return Math.max(8, 10 * (W / 600)); }
+
 function reset() {
-  ball = { x: W / 2, y: H / 2, dx: speed * (Math.random() > 0.5 ? 1 : -1), dy: speed * (Math.random() - 0.5) * 1.2 };
-  player = { x: 10, y: H / 2 - barW / 2 };
-  ai = { x: W - 20, y: H / 2 - barW / 2 };
+  const s = speed * (Math.min(W, H) / 400);
+  ball = { x: W / 2, y: H / 2, dx: s * (Math.random() > 0.5 ? 1 : -1), dy: s * (Math.random() - 0.5) * 1.2 };
+  const pw = paddleW();
+  player = { x: pw, y: H / 2 - scaledBarW() / 2 };
+  ai = { x: W - pw * 2, y: H / 2 - scaledBarW() / 2 };
 }
 
 function updateScore() {
   document.getElementById('score').textContent = playerScore + ' : ' + aiScore;
 }
 
+// Mouse
 canvas.addEventListener('mousemove', e => {
   const rect = canvas.getBoundingClientRect();
-  player.y = e.clientY - rect.top - barW / 2;
-  player.y = Math.max(0, Math.min(H - barW, player.y));
+  player.y = e.clientY - rect.top - scaledBarW() / 2;
+  player.y = Math.max(0, Math.min(H - scaledBarW(), player.y));
 });
+
+// Touch
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  player.y = touch.clientY - rect.top - scaledBarW() / 2;
+  player.y = Math.max(0, Math.min(H - scaledBarW(), player.y));
+}, { passive: false });
+
+canvas.addEventListener('touchstart', e => { e.preventDefault(); }, { passive: false });
 
 function loop() {
   if (!running) return;
+  const sb = scaledBarW();
+  const pw = paddleW();
+  const ballR = Math.max(4, 6 * (Math.min(W, H) / 400));
 
   // AI
-  const aiCenter = ai.y + barW / 2;
-  const aiSpeed = diff * 0.8;
+  const aiCenter = ai.y + sb / 2;
+  const aiSpeed = diff * 0.8 * (H / 400);
   if (ball.y > aiCenter + 5) ai.y += aiSpeed;
   else if (ball.y < aiCenter - 5) ai.y -= aiSpeed;
-  ai.y = Math.max(0, Math.min(H - barW, ai.y));
+  ai.y = Math.max(0, Math.min(H - sb, ai.y));
 
   // Ball
   ball.x += ball.dx;
   ball.y += ball.dy;
 
-  // Top/bottom bounce
-  if (ball.y <= 5 || ball.y >= H - 5) ball.dy *= -1;
+  if (ball.y <= ballR || ball.y >= H - ballR) ball.dy *= -1;
 
   // Player paddle
-  if (ball.x <= 20 && ball.y >= player.y && ball.y <= player.y + barW) {
+  if (ball.x <= pw * 2 && ball.y >= player.y && ball.y <= player.y + sb) {
     ball.dx = Math.abs(ball.dx);
-    ball.dy += (ball.y - (player.y + barW / 2)) * 0.1;
+    ball.dy += (ball.y - (player.y + sb / 2)) * 0.1;
   }
   // AI paddle
-  if (ball.x >= W - 25 && ball.y >= ai.y && ball.y <= ai.y + barW) {
+  if (ball.x >= W - pw * 2.5 && ball.y >= ai.y && ball.y <= ai.y + sb) {
     ball.dx = -Math.abs(ball.dx);
-    ball.dy += (ball.y - (ai.y + barW / 2)) * 0.1;
+    ball.dy += (ball.y - (ai.y + sb / 2)) * 0.1;
   }
 
-  // Score
   if (ball.x < 0) { aiScore++; updateScore(); reset(); }
   if (ball.x > W) { playerScore++; updateScore(); reset(); }
 
@@ -96,7 +133,6 @@ function loop() {
   ctx.fillStyle = '#111';
   ctx.fillRect(0, 0, W, H);
 
-  // Center line
   ctx.setLineDash([8, 8]);
   ctx.strokeStyle = '#0f044';
   ctx.beginPath();
@@ -105,17 +141,29 @@ function loop() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Paddles
   ctx.fillStyle = '#0f0';
-  ctx.fillRect(player.x, player.y, 10, barW);
-  ctx.fillRect(ai.x, ai.y, 10, barW);
+  ctx.fillRect(player.x, player.y, pw, sb);
+  ctx.fillRect(ai.x, ai.y, pw, sb);
 
-  // Ball
   ctx.beginPath();
-  ctx.arc(ball.x, ball.y, 6, 0, Math.PI * 2);
+  ctx.arc(ball.x, ball.y, ballR, 0, Math.PI * 2);
   ctx.fill();
 
   requestAnimationFrame(loop);
+}
+
+function drawStatic() {
+  const sb = scaledBarW();
+  const pw = paddleW();
+  const ballR = Math.max(4, 6 * (Math.min(W, H) / 400));
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#0f0';
+  ctx.fillRect(pw, H / 2 - sb / 2, pw, sb);
+  ctx.fillRect(W - pw * 2, H / 2 - sb / 2, pw, sb);
+  ctx.beginPath();
+  ctx.arc(W / 2, H / 2, ballR, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 document.getElementById('startBtn').onclick = () => {
@@ -125,16 +173,8 @@ document.getElementById('startBtn').onclick = () => {
   loop();
 };
 
-// Initial draw
-reset();
-ctx.fillStyle = '#111';
-ctx.fillRect(0, 0, W, H);
-ctx.fillStyle = '#0f0';
-ctx.fillRect(player.x, player.y, 10, barW);
-ctx.fillRect(ai.x, ai.y, 10, barW);
-ctx.beginPath();
-ctx.arc(ball.x, ball.y, 6, 0, Math.PI * 2);
-ctx.fill();
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 </script>
 </body>
 </html>
