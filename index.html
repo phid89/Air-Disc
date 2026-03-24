@@ -85,16 +85,28 @@ canvas.addEventListener('mousemove', e => {
   player.y = Math.max(0, Math.min(H - scaledBarW(), player.y));
 });
 
-// Touch
+// Touch — hold and drag anywhere on screen
+let touchActive = false;
+let touchStartY = 0, paddleStartY = 0;
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  touchActive = true;
+  const touch = e.touches[0];
+  touchStartY = touch.clientY;
+  paddleStartY = player.y;
+}, { passive: false });
+
 canvas.addEventListener('touchmove', e => {
   e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
+  if (!touchActive) return;
   const touch = e.touches[0];
-  player.y = touch.clientY - rect.top - scaledBarW() / 2;
+  const dy = touch.clientY - touchStartY;
+  player.y = paddleStartY + dy;
   player.y = Math.max(0, Math.min(H - scaledBarW(), player.y));
 }, { passive: false });
 
-canvas.addEventListener('touchstart', e => { e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchend', e => { e.preventDefault(); touchActive = false; }, { passive: false });
 
 function loop() {
   if (!running) return;
