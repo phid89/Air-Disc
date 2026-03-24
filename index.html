@@ -89,7 +89,8 @@ canvas.addEventListener('mousemove', e => {
 let touchActive = false;
 let touchStartY = 0, paddleStartY = 0;
 
-canvas.addEventListener('touchstart', e => {
+document.addEventListener('touchstart', e => {
+  if (e.target.closest('#controls')) return;
   e.preventDefault();
   touchActive = true;
   const touch = e.touches[0];
@@ -97,16 +98,16 @@ canvas.addEventListener('touchstart', e => {
   paddleStartY = player.y;
 }, { passive: false });
 
-canvas.addEventListener('touchmove', e => {
-  e.preventDefault();
+document.addEventListener('touchmove', e => {
   if (!touchActive) return;
+  e.preventDefault();
   const touch = e.touches[0];
   const dy = touch.clientY - touchStartY;
   player.y = paddleStartY + dy;
   player.y = Math.max(0, Math.min(H - scaledBarW(), player.y));
 }, { passive: false });
 
-canvas.addEventListener('touchend', e => { e.preventDefault(); touchActive = false; }, { passive: false });
+document.addEventListener('touchend', e => { if (touchActive) { e.preventDefault(); touchActive = false; } }, { passive: false });
 
 function loop() {
   if (!running) return;
